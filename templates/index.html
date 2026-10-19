@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Red Teamer</title>
+<style>
+  :root{--bg:#0f172a;--card:#1e293b;--line:#334155;--text:#e2e8f0;--muted:#94a3b8;
+        --accent:#6366f1;--fail:#ef4444;--pass:#22c55e;--review:#f59e0b;}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,Segoe UI,Arial,sans-serif;background:var(--bg);color:var(--text)}
+  header{padding:20px 28px;border-bottom:1px solid var(--line)}
+  header h1{margin:0;font-size:22px} header p{margin:4px 0 0;color:var(--muted);font-size:14px}
+  main{max-width:1100px;margin:0 auto;padding:24px;display:grid;gap:20px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px}
+  h2{margin:0 0 14px;font-size:17px}
+  label{display:block;font-size:13px;color:var(--muted);margin:12px 0 4px}
+  input,select,textarea{width:100%;padding:9px 10px;border-radius:8px;border:1px solid var(--line);
+        background:#0b1220;color:var(--text);font-size:14px}
+  textarea{min-height:60px;resize:vertical}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .cats{display:flex;flex-wrap:wrap;gap:14px;margin-top:6px}
+  .cats label{display:flex;gap:6px;align-items:center;margin:0;color:var(--text)}
+  .cats input{width:auto}
+  button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:11px 20px;
+         font-size:15px;cursor:pointer}
+  button:disabled{opacity:.5;cursor:wait}
+  button.sec{background:transparent;border:1px solid var(--line);color:var(--text);padding:8px 14px;font-size:13px}
+  .note{font-size:12px;color:var(--muted);margin-top:8px}
+  .err{color:var(--fail);margin-top:10px;font-size:14px}
+  .stats{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
+  .stat{background:#0b1220;border:1px solid var(--line);border-radius:10px;padding:14px;text-align:center}
+  .stat b{display:block;font-size:26px} .stat span{font-size:12px;color:var(--muted)}
+  .bar{height:10px;background:#0b1220;border-radius:6px;overflow:hidden;margin-top:14px}
+  .bar div{height:100%}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th,td{text-align:left;padding:10px;border-bottom:1px solid var(--line)}
+  th{color:var(--muted);font-weight:500}
+  tr.row{cursor:pointer} tr.row:hover{background:#0b1220}
+  .badge{padding:2px 9px;border-radius:999px;font-size:12px;font-weight:600}
+  .FAIL{background:#7f1d1d;color:#fecaca} .PASS{background:#14532d;color:#bbf7d0}
+  .REVIEW{background:#78350f;color:#fde68a} .ERROR{background:#334155;color:#e2e8f0}
+  .sev-critical{color:#f87171} .sev-high{color:#fb923c} .sev-medium{color:#fbbf24} .sev-low{color:#94a3b8}
+  .detail td{background:#0b1220}
+  .detail pre{white-space:pre-wrap;word-break:break-word;background:#020617;border:1px solid var(--line);
+        border-radius:8px;padding:10px;font-size:13px;margin:4px 0 12px}
+  .detail h4{margin:8px 0 2px;font-size:12px;color:var(--muted);text-transform:uppercase}
+  .hidden{display:none}
+  @media(max-width:700px){.grid2,.stats{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<header>
+  <h1>AI Red Teamer</h1>
+  <p>Test a chatbot for prompt injection, jailbreaks, data leakage and unsafe responses.</p>
+</header>
+<main>
+  <section class="card">
+    <h2>1. Choose what to test</h2>
+    <label for="target">Chatbot type</label>
+    <select id="target">
+      <option value="mock">Demo chatbot (built in, no setup)</option>
+      <option value="http">My chatbot API (JSON over HTTP)</option>
+      <option value="openai">OpenAI-compatible API</option>
+    </select>
+
+    <div id="f-url" class="hidden">
+      <label for="url">Chatbot URL</label>
+      <input id="url" placeholder="http://localhost:8000/chat">
+    </div>
+    <div id="f-http" class="hidden">
+      <div class="grid2">
+        <div><label for="rk">Request key (field that holds the prompt)</label><input id="rk" value="message"></div>
+        <div><label for="sk">Response key (path to the reply)</label><input id="sk" value="response"></div>
+      </div>
+      <label for="headers">Extra headers (one per line, e.g. Authorization: Bearer ...)</label>
+      <textarea id="headers"></textarea>
+    </div>
+    <div id="f-openai" class="hidden">
+      <div class="grid2">
+        <div><label for="model">Model</label><input id="model" value="gpt-4o-mini"></div>
+        <div><label for="key">API key</label><input id="key" type="password" placeholder="sk-..."></div>
+      </div>
+      <label for="sys">System prompt to test (optional)</label>
+      <textarea id="sys" placeholder="You are a helpful bank assistant."></textarea>
+    </div>
+
+    <div id="f-canary" class="hidden">
+      <label for="canary">Planted secrets to look for (optional, comma separated)</label>
+      <input id="canary" placeholder="MY-SECRET-123">
+    </div>
+
+    <label>Test categories</label>
+    <div class="cats">
+      <label><input type="checkbox" value="prompt_injection" checked> Prompt injection</label>
+      <label><input type="checkbox" value="jailbreak" checked> Jailbreaks</label>
+      <label><input type="checkbox" value="data_leakage" checked> Data leakage</label>
+      <label><input type="checkbox" value="unsafe_content" checked> Unsafe content</label>
+    </div>
+
+    <div style="margin-top:18px">
+      <button id="run">Run security tests</button>
+    </div>
+    <div class="note">Only test chatbots you own or have permission to test.</div>
+    <div id="err" class="err"></div>
+  </section>
+
+  <section id="results" class="card hidden">
+    <h2>2. Results</h2>
+    <div id="meta" class="note" style="margin:0 0 12px"></div>
+    <div class="stats" id="stats"></div>
+    <div class="bar"><div id="barfill"></div></div>
+    <div style="margin:16px 0;display:flex;gap:10px">
+      <button class="sec" id="dl-md">Download report (.md)</button>
+      <button class="sec" id="dl-json">Download data (.json)</button>
+    </div>
+    <table>
+      <thead><tr><th>ID</th><th>Test</th><th>Category</th><th>Severity</th><th>Verdict</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <div class="note">Click a row to see the attack prompt, the response and the recommended fix.</div>
+  </section>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+let last = null;
+
+function updateForm() {
+  const t = $("target").value;
+  $("f-url").classList.toggle("hidden", t === "mock");
+  $("f-http").classList.toggle("hidden", t !== "http");
+  $("f-openai").classList.toggle("hidden", t !== "openai");
+  $("f-canary").classList.toggle("hidden", t === "mock");
+}
+$("target").addEventListener("change", updateForm);
+updateForm();
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;   // textContent => bot output can never run as HTML
+  return e;
+}
+
+function riskColor(score) { return score >= 50 ? "var(--fail)" : score >= 20 ? "var(--review)" : "var(--pass)"; }
+
+$("run").addEventListener("click", async () => {
+  $("err").textContent = "";
+  const cats = [...document.querySelectorAll(".cats input:checked")].map(c => c.value);
+  const body = {
+    target: $("target").value, url: $("url").value, request_key: $("rk").value,
+    response_key: $("sk").value, headers: $("headers").value, model: $("model").value,
+    api_key: $("key").value, system_prompt: $("sys").value, categories: cats,
+    canaries: $("canary").value.split(",")
+  };
+  $("run").disabled = true; $("run").textContent = "Running tests...";
+  try {
+    const res = await fetch("/api/scan", {method: "POST", headers: {"Content-Type": "application/json"},
+                                          body: JSON.stringify(body)});
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Scan failed");
+    last = data; render(data);
+  } catch (e) {
+    $("err").textContent = e.message;
+  } finally {
+    $("run").disabled = false; $("run").textContent = "Run security tests";
+  }
+});
+
+function render(d) {
+  $("results").classList.remove("hidden");
+  $("meta").textContent = `Target: ${d.meta.target}  |  ${d.meta.date}  |  ${d.summary.total} tests`;
+
+  const s = d.summary, c = s.counts;
+  const stats = $("stats"); stats.replaceChildren();
+  [["Overall risk", s.overall_risk], ["Risk score", s.risk_score + "/100"], ["Vulnerable", c.FAIL],
+   ["Passed", c.PASS], ["Review / errors", c.REVIEW + c.ERROR]].forEach(([label, val]) => {
+    const box = el("div", "stat"); box.append(el("b", "", val), el("span", "", label)); stats.append(box);
+  });
+  $("barfill").style.width = s.risk_score + "%";
+  $("barfill").style.background = riskColor(s.risk_score);
+
+  const rows = $("rows"); rows.replaceChildren();
+  d.results.forEach(r => {
+    const tr = el("tr", "row");
+    tr.append(el("td", "", r.id), el("td", "", r.name),
+              el("td", "", r.category.replace("_", " ")), el("td", "sev-" + r.severity, r.severity));
+    const v = el("td"); v.append(el("span", "badge " + r.verdict, r.verdict)); tr.append(v);
+
+    const dt = el("tr", "detail hidden"); const cell = el("td"); cell.colSpan = 5;
+    [["Evidence", r.evidence], ["Attack prompt", r.prompt], ["Model response", r.response],
+     ["Recommended fix", r.fix]].forEach(([h, txt]) => { cell.append(el("h4", "", h), el("pre", "", txt)); });
+    dt.append(cell);
+    tr.addEventListener("click", () => dt.classList.toggle("hidden"));
+    rows.append(tr, dt);
+  });
+  $("results").scrollIntoView({behavior: "smooth"});
+}
+
+function download(name, blob) {
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; a.click();
+}
+$("dl-json").addEventListener("click", () => {
+  if (last) download("redteam_report.json", new Blob([JSON.stringify(last, null, 2)], {type: "application/json"}));
+});
+$("dl-md").addEventListener("click", async () => {
+  if (!last) return;
+  const res = await fetch("/api/report", {method: "POST", headers: {"Content-Type": "application/json"},
+                                          body: JSON.stringify(last)});
+  download("redteam_report.md", await res.blob());
+});
+</script>
+</body>
+</html>
