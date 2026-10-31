@@ -264,7 +264,11 @@ class HTTPTarget:
 
     def __init__(self, url, request_key, response_key, headers, timeout=60):
         self.url, self.rk, self.resp_k = url, request_key, response_key
-        self.headers = {"Content-Type": "application/json", **headers}
+        # Some providers (e.g. Groq via Cloudflare) block the default Python User-Agent (error 1010)
+        self.headers = {"Content-Type": "application/json",
+                        "Accept": "application/json",
+                        "User-Agent": "Mozilla/5.0 (compatible; AI-Red-Teamer/1.0)",
+                        **headers}
         self.timeout = timeout
 
     def _post(self, body):
